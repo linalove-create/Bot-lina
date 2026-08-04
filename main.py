@@ -38,7 +38,6 @@ ADMIN_USERNAME = "@e9Qsl"
 
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-# تخزين مؤقت لنتائج بحث الأغاني والصور المعلقة للتعديل
 user_music_search = {}
 user_pending_images = {}
 
@@ -115,18 +114,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await apply_image_filter(query, context)
 
 # ----------------------------------------------------
-# 5. معالجة الرسائل والنصو ص والاختصارات
+# 5. معالجة الرسائل والنصوص والاختصارات
 # ----------------------------------------------------
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = update.message.text.strip() if update.message.text else ""
     user_id = update.effective_user.id
     mode = context.user_data.get('mode')
 
-    # نظام تلقي الأفكار والاقتراحات
     if mode == 'waiting_idea':
         idea_text = f"💡 **فكرة/اقتراح جديد من مستخدم:**\n👤 المستخدم: @{update.effective_user.username or update.effective_user.first_name} (ID: `{user_id}`)\n\n💬 النص:\n{text}"
         try:
-            # محاولة إرسال الفكرة للمطور مباشرة إذا كانت معرف أو ID معروف، أو تسجيلها
             await context.bot.send_message(chat_id=ADMIN_USERNAME, text=idea_text, parse_mode="Markdown")
         except Exception:
             logger.info(f"New Idea received from {user_id}: {text}")
@@ -135,7 +132,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("✅ **تم إرسال فكرتك بنجاح إلى المطور (@e9Qsl)!** شكراً لمساهمتك.", reply_markup=main_menu_keyboard())
         return
 
-    # الاختصارات الذكية
     if text.startswith("سبوت "):
         song_query = text.replace("سبوت", "").strip()
         await search_music(update, context, song_query)
@@ -165,12 +161,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await handle_marriage_response(update)
         return
 
-    # روابط مباشرة للتحميل
     if text.startswith("http://") or text.startswith("https://"):
         await download_video(update, text)
         return
 
-    # الأوضاع المحددة مسبقاً عبر الأزرار
     if mode == 'ai':
         await handle_ai_chat(update, text)
     elif mode == 'download':
@@ -180,12 +174,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif mode == 'music_search':
         await search_music(update, context, text)
     else:
-        # افتراضي: توجيه للذكاء الاصطناعي مع دعم كافة اللغات
         if text:
             await handle_ai_chat(update, text)
 
 # ----------------------------------------------------
-# 6. المساعد الذكي (Groq AI - متعدد اللغات وواعي بالوقت)
+# 6. المساعد الذكي (Groq AI)
 # ----------------------------------------------------
 async def handle_ai_chat(update: Update, text: str):
     if not groq_client:
@@ -198,7 +191,7 @@ async def handle_ai_chat(update: Update, text: str):
             "You are Lena, a brilliant, friendly, and advanced AI assistant created to help users. "
             "You fully support ALL languages in the world (Arabic, English, French, Spanish, Japanese, etc.). "
             "Always reply in the exact same language the user is speaking. "
-            "Current Date and Time: Tuesday, August 4, 2026, 8:57 PM (GMT+3). "
+            "Current Date and Time: Tuesday, August 4, 2026, 9:05 PM (GMT+3). "
             "Be smart, accurate, context-aware, and helpful."
         )
         response = groq_client.chat.completions.create(
@@ -214,7 +207,7 @@ async def handle_ai_chat(update: Update, text: str):
         await msg.edit_text(f"❌ حدث خطأ أثناء المعالجة: {e}")
 
 # ----------------------------------------------------
-# 7. تحميل الفيديوهات المتقدم (يدعم يوتيوب، تيك توك، تويتر، انستا، بينترست، سناب شات)
+# 7. تحميل الفيديوهات
 # ----------------------------------------------------
 async def download_video(update: Update, url: str):
     msg = await update.message.reply_text("⏳ جاري معالجة الرابط وتحميل الفيديو...")
@@ -244,15 +237,14 @@ async def download_video(update: Update, url: str):
         if os.path.exists(filename):
             os.remove(filename)
         logger.error(f"Download error: {e}")
-        await msg.edit_text(f"❌ خطأ في التحميل: تأكد أن الرابط عام وصحيح (سناب شات والمنصات المغلقة تتطلب روابط فيديوهات عامة وليست حسابات شخصية).")
+        await msg.edit_text(f"❌ خطأ في التحميل: تأكد أن الرابط عام وصحيح.")
 
 # ----------------------------------------------------
-# 8. توليد صور الذكاء الاصطناعي (مع تحسين البرومبت لمنع التكرار والتنوع)
+# 8. توليد صور الذكاء الاصطناعي
 # ----------------------------------------------------
 async def generate_image(update: Update, prompt: str):
     msg = await update.message.reply_text("🎨 جاري ابتكار ورسم الصورة بالذكاء الاصطناعي...")
     
-    # تحسين الوصف بلغة إنجليزية عبر الذكاء الاصطناعي لضمان نتائج مذهلة وخالية من التكرار
     enhanced_prompt = prompt
     if groq_client:
         try:
@@ -267,7 +259,6 @@ async def generate_image(update: Update, prompt: str):
         except:
             pass
 
-    # إضافة رقم عشوائي للبذرة (Seed) لضمان عدم تشابه الصور في كل مرة
     random_seed = random.randint(1, 999999)
     encoded = urllib.parse.quote(enhanced_prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&seed={random_seed}&nologo=true"
@@ -286,7 +277,7 @@ async def generate_image(update: Update, prompt: str):
         await msg.edit_text(f"❌ حدث خطأ أثناء توليد الصورة: {e}")
 
 # ----------------------------------------------------
-# 9. تعديل وفلاتر الصور الاحترافية (باستخدام PIL)
+# 9. تعديل وفلاتر الصور الاحترافية
 # ----------------------------------------------------
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo = update.message.photo[-1]
@@ -295,7 +286,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await photo_file.download_to_memory(photo_bytes)
     photo_bytes.seek(0)
 
-    # حفظ الصورة مؤقتاً لمعالجة الفلاتر بناءً على اختيار المستخدم
     user_id = update.effective_user.id
     user_pending_images[user_id] = photo_bytes.read()
 
@@ -327,10 +317,8 @@ async def apply_image_filter(query, context):
         img = Image.open(BytesIO(raw_img_bytes)).convert("RGB")
 
         if filter_type == "vintage":
-            # Sepia / Vintage
             img = ImageOps.autocontrast(img)
             img = ImageEnhance.Color(img).enhance(0.5)
-            # Apply warm tint
             overlay = Image.new('RGB', img.size, (112, 66, 20))
             img = Image.blend(img, overlay, 0.2)
         elif filter_type == "cyberpunk":
@@ -357,7 +345,7 @@ async def apply_image_filter(query, context):
         await query.message.edit_text(f"❌ حدث خطأ أثناء تطبيق الفلتر: {e}")
 
 # ----------------------------------------------------
-# 10. البحث عن الأغاني (سبوت / MP3)
+# 10. البحث عن الأغاني
 # ----------------------------------------------------
 async def search_music(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str):
     msg = await update.message.reply_text(f"🔍 جاري البحث عن الأغنية: **{query}**...", parse_mode="Markdown")
@@ -417,11 +405,10 @@ async def download_selected_music(query, context):
 # 11. الألعاب والميزات الإضافية (احبك، زوجني، الألعاب)
 # ----------------------------------------------------
 async def handle_love_response(update: Update):
-    # إذا كانت رسالة رد (Reply) على شخص آخر في القروب
     if update.message.reply_to_message:
         target_user = update.message.reply_to_message.from_user.first_name
         await update.message.reply_text(f"❤️‍🔥 وهـي تعشقك يا {target_user}! الله يخلد المحبة بينكم 🥰✨")
-            else:
+    else:
         await update.message.reply_text("🥰 وأنا أعشقك أكثر يا قلبي! منور الدنيا كلها ❤️✨")
 
 async def handle_marriage_response(update: Update):
@@ -441,78 +428,4 @@ async def send_games_menu_chat(update: Update, context: ContextTypes.DEFAULT_TYP
     games_text = (
         "🎮 **قائمة الألعاب الترفيهية:**\n\n"
         "1️⃣ **لعبة الحظ والتوقعات:** أرسل `/fortune` لتوقعات اليوم.\n"
-        "2️⃣ **تحدي الذكاء:** اسأل المساعد الذكي أي فوازير أو ألغاز تريدها.\n"
-        "3️⃣ ألعاب جماعية أخرى قادمة قريباً في التحديثات القادمة!"
-    )
-    await update.message.reply_text(games_text, reply_markup=back_keyboard(), parse_mode="Markdown")
-
-async def send_games_menu_ui(query):
-    games_text = (
-        "🎮 **قائمة الألعاب الترفيهية:**\n\n"
-        "1️⃣ **لعبة الحظ والتوقعات:** جرب حظك اليوم!\n"
-        "2️⃣ **ألغاز وفوازير:** اسأل لينا في وضع المساعد الذكي.\n"
-    )
-    await query.message.edit_text(games_text, reply_markup=back_keyboard(), parse_mode="Markdown")
-
-async def send_shortcuts_info_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    info_text = (
-        "📋 **دليل الاختصارات والكلمات المفتاحية للبوت:**\n\n"
-        "1️⃣ `سبوت [اسم الأغنية]` 🎵 -> للبحث عن الأغاني وتحميلها بصيغة MP3.\n"
-        "2️⃣ `تنزيل [الرابط]` 📥 -> لتحميل الفيديوهات من أي موقع.\n"
-        "3️⃣ `صورة [الوصف]` 🎨 -> لتوليد وتصميم صور احترافية بالذكاء الاصطناعي.\n"
-        "4️⃣ `العاب` 🎮 -> لفتح قائمة الألعاب الترفيهية.\n"
-        "5️⃣ `لينا [رسالتك]` أو كتابة أي نص 🤖 -> للتحدث مع المساعد الذكي المدعم بكل لغات العالم.\n"
-        "6️⃣ `تعديل` ✨ -> لإرسال صورة واختيار أشهر الفلاتر العالمية لتعديلها.\n"
-        "7️⃣ `احبك` ❤️ -> لترد عليك لينا (أو ترد على الشخص الذي ترد على رسالته بالقروب).\n"
-        "8️⃣ `زوجني` 💍 -> لزواجك العشوائي السريع والساخر من شخصيات أو أعضاء.\n"
-    )
-    await update.message.reply_text(info_text, reply_markup=back_keyboard(), parse_mode="Markdown")
-
-async def send_shortcuts_info_ui(query):
-    info_text = (
-        "📋 **دليل الاختصارات والكلمات المفتاحية للبوت:**\n\n"
-        "1️⃣ `سبوت [اسم الأغنية]` -> تحميل أغاني MP3.\n"
-        "2️⃣ `تنزيل [الرابط]` -> تحميل الفيديوهات.\n"
-        "3️⃣ `صورة [الوصف]` -> توليد صور AI.\n"
-        "4️⃣ `العاب` -> قسم الألعاب.\n"
-        "5️⃣ أي كلام عشوائي -> المساعد الذكي لينا.\n"
-        "6️⃣ `تعديل` -> فلاتر الصور الاحترافية.\n"
-        "7️⃣ `احبك` / `زوجني` -> تفاعلات رومانسية وساخرة.\n"
-    )
-    await query.message.edit_text(info_text, reply_markup=back_keyboard(), parse_mode="Markdown")
-
-# أمر النص لصوت (TTS)
-async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = " ".join(context.args)
-    if not text:
-        await update.message.reply_text("⚠️ يرجى كتابة النص بعد الأمر، مثال:\n`/tts مرحباً بك`", parse_mode="Markdown")
-        return
-    msg = await update.message.reply_text("🎙️ جاري توليد الصوت...")
-    filename = f"tts_{update.effective_user.id}.mp3"
-    try:
-        gTTS(text=text, lang='ar').save(filename)
-        await update.message.reply_voice(voice=open(filename, 'rb'))
-        os.remove(filename)
-        await msg.delete()
-    except Exception as e:
-        if os.path.exists(filename):
-            os.remove(filename)
-        await update.message.reply_text(f"❌ خطأ: {e}")
-
-# ----------------------------------------------------
-# 12. التشغيل الرئيسي
-# ----------------------------------------------------
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("tts", tts_command))
-    app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-    print("🚀 بوت لينا الشامل والمطور يعمل الآن بكافة الميزات والتحسينات...")
-    app.run_polling()
-
-if __name__ == '__main__':
-    main()
+        "2️⃣ **تحدي 
