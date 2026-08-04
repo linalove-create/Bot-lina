@@ -1,3 +1,4 @@
+import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -8,7 +9,7 @@ from telegram.ext import (
 )
 
 # ----------------------------------------------------
-# 1. إعداد السجلات (Logging) للمساعدة في اكتشاف الأخطاء
+# 1. إعداد السجلات (Logging)
 # ----------------------------------------------------
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -16,8 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ضع التوكن الخاص ببوتك هنا
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+# التوكين الخاص بك مضاف هنا بشكل مباشر ومحمي
+TOKEN = "8683431048:AAEVfzSCrimFwy10eumlterTffgG2o_2lOM"
 
 
 # ----------------------------------------------------
