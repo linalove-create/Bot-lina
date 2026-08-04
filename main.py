@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import google.generativeai as genai
+from groq import AsyncGroq
 
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import CommandStart
@@ -10,11 +10,10 @@ from aiogram.fsm.state import State, StatesGroup
 
 # ==================== البيانات الخاصة بك ====================
 BOT_TOKEN = "8683431048:AAEVfzSCrimFwy10eumlterTffgG2o_2lOM"
-GEMINI_API_KEY = "AQ.Ab8RN6L57Xjrx3S1xTkw_1eCod1hP2TwL6l_RGMXXtt5xcslPA"
+GROQ_API_KEY = "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"
 
-# إعداد الذكاء الاصطناعي
-genai.configure(api_key=GEMINI_API_KEY)
-ai_model = genai.GenerativeModel("gemini-1.5-flash")
+# إعداد الذكاء الاصطناعي (Groq - Llama 3)
+groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 
 # إعداد البوت
 bot = Bot(token=BOT_TOKEN)
@@ -72,10 +71,18 @@ async def enter_ai_mode(callback: types.CallbackQuery, state: FSMContext):
 async def ai_chat_handler(message: Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     try:
-        response = ai_model.generate_content(message.text)
-        await message.answer(response.text, reply_markup=back_keyboard())
+        chat_completion = await groq_client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": message.text,
+                }
+            ],
+            model="llama-3.1-8b-instant",
+        )
+        reply = chat_completion.choices[0].message.content
+        await message.answer(reply, reply_markup=back_keyboard())
     except Exception as e:
-        # إرسال تفاصيل الخطأ بدقة
         await message.answer(f"❌ حدث خطأ:\n\n`{str(e)}`", parse_mode="Markdown", reply_markup=back_keyboard())
 
 # ==================== تشغيل البوت ====================
