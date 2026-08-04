@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 # ==================== البيانات الخاصة بك ====================
 BOT_TOKEN = "8683431048:AAEVfzSCrimFwy10eumlterTffgG2o_2lOM"
-GEMINI_API_KEY = "AQ.Ab8RN6KPx26xnsc-7IQ4T1aX9fOe7ValUjXqkahlVkJBCOCaZQ"
+GEMINI_API_KEY = "AQ.Ab8RN6L57Xjrx3S1xTkw_1eCod1hP2TwL6l_RGMXXtt5xcslPA"
 
 # إعداد الذكاء الاصطناعي
 genai.configure(api_key=GEMINI_API_KEY)
