@@ -12,7 +12,7 @@ from groq import AsyncGroq
 from gtts import gTTS
 
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart
 from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup, Message, 
     FSInputFile, BufferedInputFile, CallbackQuery
@@ -29,7 +29,6 @@ groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ذاكرة مؤقتة
 user_music_search = {}
 USERS_FILE = "bot_users.json"
 
@@ -38,17 +37,21 @@ def load_users():
     if os.path.exists(USERS_FILE):
         try:
             with open(USERS_FILE, "r", encoding="utf-8") as f:
-                return set(json.load(f))
+                data = json.load(f)
+                return set(data) if isinstance(data, list) else set()
         except Exception:
             return set()
     return set()
 
 def save_user(user_id):
-    users = load_users()
-    if user_id not in users:
-        users.add(user_id)
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(list(users), f)
+    try:
+        users = load_users()
+        if user_id not in users:
+            users.add(user_id)
+            with open(USERS_FILE, "w", encoding="utf-8") as f:
+                json.dump(list(users), f)
+    except Exception as e:
+        logging.error(f"Error saving user: {e}")
 
 # ==================== حالات المستخدم ====================
 class UserStates(StatesGroup):
@@ -109,12 +112,15 @@ async def start_command(message: Message, state: FSMContext):
     await state.clear()
     save_user(message.from_user.id)
     
-    temp_msg = await message.answer("🔄 جاري تحديث الواجهة...", reply_markup=types.ReplyKeyboardRemove())
-    await temp_msg.delete()
+    try:
+        temp_msg = await message.answer("🔄 جاري التحديث...", reply_markup=types.ReplyKeyboardRemove())
+        await temp_msg.delete()
+    except Exception:
+        pass
 
     welcome_text = (
         f"أهلاً بك يا {message.from_user.first_name} في البوت الشامل المتطور! 🚀\n\n"
-        "جميع الخدمات أدناه تعمل بكفاءة عالية، اختر ما تحتاجه:"
+        "اختر الخدمة المطلوبة من القائمة أدناه:"
     )
     await message.answer(welcome_text, reply_markup=main_keyboard(message.from_user.id))
 
@@ -127,7 +133,7 @@ async def back_to_main(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "ai_mode")
 async def enter_ai_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.ai_chat)
-    text = "🤖 **وضع المساعد الذكي تفعّل!**\n\nاسألني بأي لغة تريدها (عربي، إنجليزي، فرنسي...) وسأجيبك فوراً."
+    text = "🤖 **وضع المساعد الذكي تفعّل!**\n\nاسألني بأي لغة وسأجيبك فوراً."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.ai_chat)
@@ -150,12 +156,12 @@ async def ai_chat_handler(message: Message):
 @dp.callback_query(F.data == "ocr_mode")
 async def enter_ocr_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.ocr_vision)
-    text = "🔍 **وضع استخراج النصوص من الصور!**\n\nأرسل أي صورة تحتوي على كتابة (بالعربية أو الإنجليزية)، وسيقوم الذكاء الاصطناعي بفرز واستخراج الكلمات منها بدقة."
+    text = "🔍 **وضع استخراج النصوص من الصور!**\n\nأرسل صورة تحتوي على كتابة وسيتم استخراجها."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.ocr_vision, F.photo)
 async def ocr_handler(message: Message):
-    status_msg = await message.answer("🔍 جاري تحليل الصورة وقراءة النصوص بواسطة الذكاء الاصطناعي...")
+    status_msg = await message.answer("🔍 جاري قراءة النص...")
     
     photo = message.photo[-1]
     photo_bytes = BytesIO()
@@ -168,7 +174,7 @@ async def ocr_handler(message: Message):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "استخرج كامل النصوص والمحتويات المكتوبة داخل هذه الصورة بدقة عالية وباللغة الأصليّة المكتوبة بها:"},
+                        {"type": "text", "text": "استخرج كامل النص المكتوب داخل الصورة بدقة:"},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 }
@@ -176,7 +182,7 @@ async def ocr_handler(message: Message):
             model="llama-3.2-11b-vision-instruct",
         )
         extracted_text = chat_completion.choices[0].message.content
-        await status_msg.edit_text(f"📝 **النص المستخرج من الصورة:**\n\n{extracted_text}", parse_mode="Markdown")
+        await status_msg.edit_text(f"📝 **النص المستخرج:**\n\n{extracted_text}", parse_mode="Markdown")
     except Exception as e:
         await status_msg.edit_text(f"❌ تعذر قراءة الصورة:\n`{str(e)}`", parse_mode="Markdown")
 
@@ -184,13 +190,12 @@ async def ocr_handler(message: Message):
 @dp.callback_query(F.data == "pdf_mode")
 async def enter_pdf_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.make_pdf)
-    text = "📄 **تحويل الصور إلى ملف PDF!**\n\nأرسل الصورة التي تريد تحويلها لملف PDF الآن."
+    text = "📄 **تحويل الصور إلى PDF!**\n\nأرسل الصورة لتحويلها إلى ملف PDF."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.make_pdf, F.photo)
 async def pdf_handler(message: Message):
-    status_msg = await message.answer("📄 جاري إنشاء ملف PDF...")
-    
+    status_msg = await message.answer("📄 جاري تحويل الصورة...")
     photo = message.photo[-1]
     photo_bytes = BytesIO()
     await bot.download(photo, destination=photo_bytes)
@@ -206,32 +211,32 @@ async def pdf_handler(message: Message):
         pdf_bytes.seek(0)
 
         pdf_file = BufferedInputFile(pdf_bytes.read(), filename=f"document_{message.from_user.id}.pdf")
-        await bot.send_document(chat_id=message.chat.id, document=pdf_file, caption="✅ تم تحويل الصورة إلى مستند PDF بنجاح!", reply_markup=back_keyboard())
+        await bot.send_document(chat_id=message.chat.id, document=pdf_file, caption="✅ تم تحويل الصورة بنجاح!", reply_markup=back_keyboard())
         await status_msg.delete()
     except Exception as e:
-        await status_msg.edit_text(f"❌ حدث خطأ أثناء إنشاء PDF:\n`{str(e)}`", parse_mode="Markdown")
+        await status_msg.edit_text(f"❌ حدث خطأ:\n`{str(e)}`", parse_mode="Markdown")
 
 # ==================== 4. لوحة تحكم الأدمن ====================
 @dp.callback_query(F.data == "admin_mode")
 async def enter_admin_mode(callback: CallbackQuery):
-    text = "⚙️ **لوحة تحكم الأدمن:**\n\nيمكنك متابعة الإحصائيات وإرسال إشعار عام لجميع مستخدمي البوت."
+    text = "⚙️ **لوحة تحكم الأدمن:**"
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=admin_keyboard())
 
 @dp.callback_query(F.data == "admin_stats")
 async def admin_stats_handler(callback: CallbackQuery):
     users = load_users()
-    await callback.answer(f"📊 إجمالي عدد مستخدمي البوت: {len(users)} مستخدم", show_alert=True)
+    await callback.answer(f"📊 إجمالي المستخدِمين: {len(users)} مستخدم", show_alert=True)
 
 @dp.callback_query(F.data == "admin_broadcast_start")
 async def admin_broadcast_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.admin_broadcast)
-    text = "📢 **إرسال ذاعة جماعية:**\n\nاكتب الرسالة التي تريد إرسالها لجميع المستخدمين الآن."
+    text = "📢 **إرسال ذاعة جماعية:**\n\nاكتب الرسالة المراد إرسالها للجميع."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.admin_broadcast)
 async def perform_broadcast(message: Message, state: FSMContext):
     users = load_users()
-    status_msg = await message.answer(f"⏳ جاري إرسال الرسالة إلى {len(users)} مستخدم...")
+    status_msg = await message.answer(f"⏳ جاري الإرسال إلى {len(users)} مستخدم...")
     
     count = 0
     for user_id in users:
@@ -242,18 +247,14 @@ async def perform_broadcast(message: Message, state: FSMContext):
         except Exception:
             pass
 
-    await status_msg.edit_text(f"✅ تم إرسال الإذاعة بنجاح إلى {count} مستخدم!", reply_markup=back_keyboard())
+    await status_msg.edit_text(f"✅ تم الإرسال بنجاح إلى {count} مستخدم!", reply_markup=back_keyboard())
     await state.clear()
 
 # ==================== 5. تحميل الفيديو والصور ====================
 @dp.callback_query(F.data == "download_mode")
 async def enter_download_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.download_video)
-    text = (
-        "📥 **تنزيل الوسائط الشامل!**\n\n"
-        "أرسل رابط المقطع أو الصورة من:\n"
-        "• YouTube / Shorts\n• TikTok\n• Instagram\n• Snapchat\n• Pinterest\n• Twitter / X"
-    )
+    text = "📥 **أرسل رابط المقطع من (YouTube, TikTok, Instagram, Snapchat, Pinterest, X):**"
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.download_video)
@@ -263,7 +264,7 @@ async def download_video_handler(message: Message):
         await message.answer("⚠️ يرجى إرسال رابط صحيح يبدأ بـ http/https", reply_markup=back_keyboard())
         return
 
-    status_msg = await message.answer("⏳ جاري المعالجة والتحميل...")
+    status_msg = await message.answer("⏳ جاري التحميل...")
     output_filename = f"media_{message.from_user.id}.%(ext)s"
 
     ydl_opts = {
@@ -289,20 +290,20 @@ async def download_video_handler(message: Message):
             os.remove(filename)
             await status_msg.delete()
         else:
-            await status_msg.edit_text("❌ لم نتمكن من العثور على الملف.")
+            await status_msg.edit_text("❌ تعذر العثور على الملف.")
     except Exception as e:
-        await status_msg.edit_text(f"❌ حدث خطأ أثناء التحميل:\n`{str(e)}`", parse_mode="Markdown")
+        await status_msg.edit_text(f"❌ خطأ في التحميل:\n`{str(e)}`", parse_mode="Markdown")
 
 # ==================== 6. توليد الصور ====================
 @dp.callback_query(F.data == "image_mode")
 async def enter_image_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.generate_image)
-    text = "🎨 **توليد الصور بالذكاء الاصطناعي!**\n\nاكتب وصف الصورة بالتفصيل."
+    text = "🎨 **توليد الصور:**\n\nاكتب وصف الصورة بالتفصيل."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.generate_image)
 async def generate_image_handler(message: Message):
-    status_msg = await message.answer("🎨 جاري رسم الصورة...")
+    status_msg = await message.answer("🎨 جاري الرسم...")
     encoded_prompt = urllib.parse.quote(message.text)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true"
 
@@ -312,24 +313,23 @@ async def generate_image_handler(message: Message):
                 if resp.status == 200:
                     image_data = await resp.read()
                     photo_file = BufferedInputFile(image_data, filename="ai_image.jpg")
-                    await bot.send_photo(chat_id=message.chat.id, photo=photo_file, caption=f"✨ **الوصف:** {message.text}", reply_markup=back_keyboard())
+                    await bot.send_photo(chat_id=message.chat.id, photo=photo_file, caption=f"✨ الوصف: {message.text}", reply_markup=back_keyboard())
                     await status_msg.delete()
                 else:
-                    await status_msg.edit_text("❌ حدث خطأ أثناء توليد الصورة.")
+                    await status_msg.edit_text("❌ تعذر إنشاء الصورة.")
     except Exception as e:
-        await status_msg.edit_text(f"❌ تعذر توليد الصورة:\n`{str(e)}`", parse_mode="Markdown")
+        await status_msg.edit_text(f"❌ حدث خطأ:\n`{str(e)}`", parse_mode="Markdown")
 
 # ==================== 7. تعديل وتحسين الصور ====================
 @dp.callback_query(F.data == "edit_image_mode")
 async def enter_edit_image_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.edit_image)
-    text = "✨ **تعديل وتحسين الصور!**\n\nأرسل الصورة الآن لتحسين ألوانها ووضوحها تلقائياً."
+    text = "✨ **تعديل وتحسين الصور:**\n\nأرسل الصورة لتحسين جودتها."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.edit_image, F.photo)
 async def edit_image_handler(message: Message):
-    status_msg = await message.answer("🛠️ جاري تعديل وتحسين ألوان الصورة...")
-    
+    status_msg = await message.answer("🛠️ جاري المعالجة...")
     photo = message.photo[-1]
     photo_bytes = BytesIO()
     await bot.download(photo, destination=photo_bytes)
@@ -345,24 +345,23 @@ async def edit_image_handler(message: Message):
         img.save(output_io, format='JPEG', quality=95)
         output_io.seek(0)
 
-        photo_file = BufferedInputFile(output_io.read(), filename="enhanced_image.jpg")
-        await bot.send_photo(chat_id=message.chat.id, photo=photo_file, caption="✨ تم تحسين وتعديل الصورة بنجاح!", reply_markup=back_keyboard())
+        photo_file = BufferedInputFile(output_io.read(), filename="enhanced.jpg")
+        await bot.send_photo(chat_id=message.chat.id, photo=photo_file, caption="✨ تم تحسين الصورة!", reply_markup=back_keyboard())
         await status_msg.delete()
     except Exception as e:
-        await status_msg.edit_text(f"❌ حدث خطأ أثناء التعديل:\n`{str(e)}`", parse_mode="Markdown")
+        await status_msg.edit_text(f"❌ حدث خطأ:\n`{str(e)}`", parse_mode="Markdown")
 
-# ==================== 8. البحث عن الأغاني MP3 ====================
+# ==================== 8. البحث عن الأغاني ====================
 @dp.callback_query(F.data == "music_mode")
 async def enter_music_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.music_search)
-    text = "🎵 **البحث عن الأغاني والموسيقى!**\n\nاكتب اسم الأغنية أو الفنان."
+    text = "🎵 **البحث عن الأغاني:**\n\nاكتب اسم الأغنية."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.music_search)
 async def music_search_handler(message: Message):
     status_msg = await message.answer("🔍 جاري البحث...")
     query = message.text.strip()
-
     ydl_opts = {'default_search': 'ytsearch5', 'quiet': True, 'extract_flat': True}
 
     try:
@@ -371,21 +370,20 @@ async def music_search_handler(message: Message):
         entries = info.get('entries', [])
 
         if not entries:
-            await status_msg.edit_text("❌ لم يتم العثور على أي نتائج.")
+            await status_msg.edit_text("❌ لم نجد أي نتائج.")
             return
 
         user_music_search[message.from_user.id] = entries
         buttons = []
         for idx, entry in enumerate(entries[:5]):
-            title = entry.get('title', 'أغنية بدون عنوان')[:35]
+            title = entry.get('title', 'أغنية')[:35]
             buttons.append([InlineKeyboardButton(text=f"🎶 {idx+1}. {title}", callback_data=f"dlmusic_{idx}")])
         
         buttons.append([InlineKeyboardButton(text="🔙 العودة للقائمة الرئيسية", callback_data="main_menu")])
         markup = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-        await status_msg.edit_text("🎼 اختر الأغنية لتحميلها بصيغة MP3:", reply_markup=markup)
+        await status_msg.edit_text("🎼 اختر الأغنية لتحميلها:", reply_markup=markup)
     except Exception as e:
-        await status_msg.edit_text(f"❌ حدث خطأ أثناء البحث:\n`{str(e)}`", parse_mode="Markdown")
+        await status_msg.edit_text(f"❌ خطأ:\n`{str(e)}`", parse_mode="Markdown")
 
 @dp.callback_query(F.data.startswith("dlmusic_"))
 async def download_selected_music(callback: CallbackQuery):
@@ -394,12 +392,12 @@ async def download_selected_music(callback: CallbackQuery):
     entries = user_music_search.get(user_id)
 
     if not entries or idx >= len(entries):
-        await callback.answer("⚠️ انتهت الجلسة، أعد البحث.", show_alert=True)
+        await callback.answer("⚠️ أعد البحث من جديد.", show_alert=True)
         return
 
     selected = entries[idx]
     video_url = f"https://www.youtube.com/watch?v={selected['id']}"
-    await callback.message.edit_text(f"⏳ جاري تنزيل: **{selected.get('title')}**...", parse_mode="Markdown")
+    await callback.message.edit_text(f"⏳ جاري التحميل: **{selected.get('title')}**...", parse_mode="Markdown")
 
     output_filename = f"song_{user_id}.mp3"
     ydl_opts = {
@@ -419,7 +417,7 @@ async def download_selected_music(callback: CallbackQuery):
             os.remove(output_filename)
             await callback.message.delete()
         else:
-            await callback.message.edit_text("❌ تعذر استخراج الصوت.", reply_markup=back_keyboard())
+            await callback.message.edit_text("❌ تعذر تنزيل الصوت.", reply_markup=back_keyboard())
     except Exception as e:
         if os.path.exists(output_filename):
             os.remove(output_filename)
@@ -429,14 +427,26 @@ async def download_selected_music(callback: CallbackQuery):
 @dp.callback_query(F.data == "tts_mode")
 async def enter_tts_mode(callback: CallbackQuery, state: FSMContext):
     await state.set_state(UserStates.text_to_speech)
-    text = "🎙️ **تحويل النص إلى صوت!**\n\nاكتب أي نص لتحويله لصوت."
+    text = "🎙️ **تحويل النص إلى صوت:**\n\nاكتب النص المطلوب."
     await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=back_keyboard())
 
 @dp.message(UserStates.text_to_speech)
 async def tts_handler(message: Message):
-    status_msg = await message.answer("🗣️ جاري إنتاج الصوت...")
+    status_msg = await message.answer("🗣️ جاري معالجة الصوت...")
     filename = f"tts_{message.from_user.id}.mp3"
     try:
         gTTS(text=message.text, lang='ar').save(filename)
         audio_file = FSInputFile(filename)
-        await bot.send_voice(chat_id=message.chat.id, voice=audio_file, reply_
+        await bot.send_voice(chat_id=message.chat.id, voice=audio_file, reply_markup=back_keyboard())
+        await status_msg.delete()
+        os.remove(filename)
+    except Exception as e:
+        if os.path.exists(filename):
+            os.remove(filename)
+        await status_msg.edit_text(f"❌ حدث خطأ:\n`{str(e)}`", parse_mode="Markdown")
+
+# ==================== 10. الألعاب والتسلية ====================
+@dp.callback_query(F.data == "games_mode")
+async def enter_games_mode(callback: CallbackQuery):
+    text = "🎮 **الألعاب والتسلية:**"
+    await callback.message.edit_text(text, parse_
