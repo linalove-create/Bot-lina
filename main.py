@@ -63,11 +63,11 @@ def back_keyboard():
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.clear()
-    welcome_text = (
-        "✨ **أهلاً بك في بوت لينا المتطور الشامل!** ✨\n\n"
-        "🌍 أدعم **كافة لغات العالم**، ومجهز بأحدث أدوات الذكاء الاصطناعي.\n"
-        "اختر ما تحب من القائمة أدناه أو استخدم الكلمات المفتاحية المباشرة (مثل: `سبوت`, `تنزيل`, `صورة`, `تعديل`, `العاب`):"
-    )
+    welcome_text = """✨ **أهلاً بك في بوت لينا المتطور الشامل!** ✨
+
+🌍 أدعم **كافة لغات العالم**، ومجهز بأحدث أدوات الذكاء الاصطناعي.
+اختر ما تحب من القائمة أدناه أو استخدم الكلمات المفتاحية المباشرة (مثل: `سبوت`, `تنزيل`, `صورة`, `تعديل`, `العاب`):"""
+    
     if update.message:
         await update.message.reply_text(welcome_text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
     elif update.callback_query:
@@ -191,7 +191,7 @@ async def handle_ai_chat(update: Update, text: str):
             "You are Lena, a brilliant, friendly, and advanced AI assistant created to help users. "
             "You fully support ALL languages in the world (Arabic, English, French, Spanish, Japanese, etc.). "
             "Always reply in the exact same language the user is speaking. "
-            "Current Date and Time: Tuesday, August 4, 2026, 9:05 PM (GMT+3). "
+            "Current Date and Time: Tuesday, August 4, 2026, 9:09 PM (GMT+3). "
             "Be smart, accurate, context-aware, and helpful."
         )
         response = groq_client.chat.completions.create(
@@ -427,5 +427,75 @@ async def handle_marriage_response(update: Update):
 async def send_games_menu_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
     games_text = (
         "🎮 **قائمة الألعاب الترفيهية:**\n\n"
-        "1️⃣ **لعبة الحظ والتوقعات:** أرسل `/fortune` لتوقعات اليوم.\n"
-        "2️⃣ **تحدي 
+        "1. **لعبة الحظ والتوقعات:** أرسل /fortune لتوقعات اليوم.\n"
+        "2. **تحدي الذكاء:** اسأل المساعد الذكي أي فوازير أو ألغاز تريدها.\n"
+        "3. ألعاب جماعية أخرى قادمة قريباً في التحديثات القادمة!"
+    )
+    await update.message.reply_text(games_text, reply_markup=back_keyboard(), parse_mode="Markdown")
+
+async def send_games_menu_ui(query):
+    games_text = (
+        "🎮 **قائمة الألعاب الترفيهية:**\n\n"
+        "1. **لعبة الحظ والتوقعات:** جرب حظك اليوم!\n"
+        "2. **ألغاز وفوازير:** اسأل لينا في وضع المساعد الذكي."
+    )
+    await query.message.edit_text(games_text, reply_markup=back_keyboard(), parse_mode="Markdown")
+
+async def send_shortcuts_info_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    info_text = (
+        "📋 **دليل الاختصارات والكلمات المفتاحية للبوت:**\n\n"
+        "1. `سبوت [اسم الأغنية]` 🎵 -> للبحث عن الأغاني وتحميلها بصيغة MP3.\n"
+        "2. `تنزيل [الرابط]` 📥 -> لتحميل الفيديوهات من أي موقع.\n"
+        "3. `صورة [الوصف]` 🎨 -> لتوليد وتصميم صور احترافية بالذكاء الاصطناعي.\n"
+        "4. `العاب` 🎮 -> لفتح قائمة الألعاب الترفيهية.\n"
+        "5. أي نص عادي 🤖 -> للتحدث مع المساعد الذكي.\n"
+        "6. `تعديل` ✨ -> لإرسال صورة واختيار الفلاتر."
+    )
+    await update.message.reply_text(info_text, reply_markup=back_keyboard(), parse_mode="Markdown")
+
+async def send_shortcuts_info_ui(query):
+    info_text = (
+        "📋 **دليل الاختصارات والكلمات المفتاحية للبوت:**\n\n"
+        "1. `سبوت [اسم الأغنية]` -> تحميل أغاني MP3.\n"
+        "2. `تنزيل [الرابط]` -> تحميل الفيديوهات.\n"
+        "3. `صورة [الوصف]` -> توليد صور AI.\n"
+        "4. `العاب` -> قسم الألعاب.\n"
+        "5. أي كلام عشوائي -> المساعد الذكي لينا.\n"
+        "6. `تعديل` -> فلاتر الصور الاحترافية."
+    )
+    await query.message.edit_text(info_text, reply_markup=back_keyboard(), parse_mode="Markdown")
+
+async def tts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = " ".join(context.args)
+    if not text:
+        await update.message.reply_text("⚠️ يرجى كتابة النص بعد الأمر، مثال:\n`/tts مرحباً بك`", parse_mode="Markdown")
+        return
+    msg = await update.message.reply_text("🎙️ جاري توليد الصوت...")
+    filename = f"tts_{update.effective_user.id}.mp3"
+    try:
+        gTTS(text=text, lang='ar').save(filename)
+        await update.message.reply_voice(voice=open(filename, 'rb'))
+        os.remove(filename)
+        await msg.delete()
+    except Exception as e:
+        if os.path.exists(filename):
+            os.remove(filename)
+        await update.message.reply_text(f"❌ خطأ: {e}")
+
+# ----------------------------------------------------
+# 12. التشغيل الرئيسي
+# ----------------------------------------------------
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("tts", tts_command))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    print("🚀 بوت لينا الشامل والمطور يعمل الآن بكافة الميزات والتحسينات...")
+    app.run_polling()
+
+if __name__ == '__main__':
+    main()
