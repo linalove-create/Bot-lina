@@ -75,7 +75,8 @@ async def ai_chat_handler(message: Message):
         response = ai_model.generate_content(message.text)
         await message.answer(response.text, reply_markup=back_keyboard())
     except Exception as e:
-        await message.answer("حدث خطأ أثناء الاتصال بالذكاء الاصطناعي.")
+        # إرسال تفاصيل الخطأ بدقة
+        await message.answer(f"❌ حدث خطأ:\n\n`{str(e)}`", parse_mode="Markdown", reply_markup=back_keyboard())
 
 # ==================== تشغيل البوت ====================
 
