@@ -9,7 +9,7 @@ from gtts import gTTS
 import yt_dlp
 from groq import Groq
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BufferedInputFile
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -112,7 +112,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     text = update.message.text.strip() if update.message.text else ""
     mode = context.user_data.get('mode')
 
-    # إذا أرسل رابطاً مباشراً بدون وضع محدد
     if text.startswith("http://") or text.startswith("https://"):
         await download_video(update, text)
         return
@@ -129,7 +128,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif mode == 'music_search':
         await search_music(update, context, text)
     else:
-        # افتراضي: إذا كتب نصاً عادياً يتحول للذكاء الاصطناعي مباشرة
         if text:
             await handle_ai_chat(update, text)
 
@@ -180,7 +178,7 @@ async def generate_image(update: Update, prompt: str):
             async with session.get(url, timeout=45) as resp:
                 if resp.status == 200:
                     image_bytes = await resp.read()
-                    photo = BufferedInputFile(image_bytes, filename="ai.jpg")
+                    photo = InputFile(BytesIO(image_bytes), filename="ai.jpg")
                     await update.message.reply_photo(photo=photo, caption=f"✨ الوصف: {prompt}")
                     await msg.delete()
                 else:
@@ -207,7 +205,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             out_io = BytesIO()
             img.save(out_io, format='JPEG', quality=95)
             out_io.seek(0)
-            buffered_file = BufferedInputFile(out_io.read(), filename="enhanced.jpg")
+            buffered_file = InputFile(out_io, filename="enhanced.jpg")
             await update.message.reply_photo(photo=buffered_file, caption="✨ تم تحسين جودة الصورة بنجاح!")
             await msg.delete()
         except Exception as e:
@@ -220,7 +218,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pdf_io = BytesIO()
             img.save(pdf_io, format='PDF')
             pdf_io.seek(0)
-            pdf_file = BufferedInputFile(pdf_io.read(), filename="document.pdf")
+            pdf_file = InputFile(pdf_io, filename="document.pdf")
             await update.message.reply_document(document=pdf_file, caption="✅ تم التحويل إلى PDF بنجاح!")
             await msg.delete()
         except Exception as e:
